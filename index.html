@@ -44,6 +44,10 @@
             <select id="microphone-select"></select>
         </label>
         <label>
+            <input id="autofocus-checkbox" type="checkbox" checked>
+            Autofocus
+        </label>
+        <label>
             Rotation
             <select id="rotation-select">
                 <option value="0">0°</option>
@@ -63,10 +67,12 @@
         var deviceMenu = document.querySelector("#device-menu");
         var cameraSelect = document.querySelector("#camera-select");
         var microphoneSelect = document.querySelector("#microphone-select");
+        var autofocusCheckbox = document.querySelector("#autofocus-checkbox");
         var rotationSelect = document.querySelector("#rotation-select");
         var mirrorCheckbox = document.querySelector("#mirror-checkbox");
         var selectedCamera;
         var selectedMicrophone;
+        var autofocusEnabled = true;
         var currentStream;
         var requestNumber = 0;
 
@@ -96,6 +102,7 @@
                     var previousStream = currentStream;
                     currentStream = stream;
                     video.srcObject = stream;
+                    setAutofocusSupport(stream.getVideoTracks()[0]);
                     if (previousStream) {
                         previousStream.getTracks().forEach(function(track) { track.stop(); });
                     }
@@ -106,6 +113,19 @@
                         console.error(error);
                     }
                 });
+        }
+
+        function setAutofocusSupport(track) {
+            var capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            var focusModes = capabilities.focusMode || [];
+            var focusMode = autofocusEnabled ? "continuous" : "manual";
+            autofocusCheckbox.checked = autofocusEnabled;
+            autofocusCheckbox.disabled = !focusModes.includes("continuous") || !focusModes.includes("manual");
+            if (!autofocusCheckbox.disabled) {
+                track.applyConstraints({advanced: [{focusMode: focusMode}]}).catch(function(error) {
+                    console.error(error);
+                });
+            }
         }
 
         function updateDeviceOptions() {
@@ -158,6 +178,14 @@
         microphoneSelect.addEventListener("change", function() {
             selectedMicrophone = microphoneSelect.value || undefined;
             startStream();
+        });
+
+        autofocusCheckbox.addEventListener("change", function() {
+            autofocusEnabled = autofocusCheckbox.checked;
+            var track = currentStream && currentStream.getVideoTracks()[0];
+            if (track) {
+                setAutofocusSupport(track);
+            }
         });
 
         rotationSelect.addEventListener("change", updateViewTransform);
