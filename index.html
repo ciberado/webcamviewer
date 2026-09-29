@@ -47,6 +47,19 @@
             <input id="autofocus-checkbox" type="checkbox" checked>
             Autofocus
         </label>
+        <label>
+            Rotation
+            <select id="rotation-select">
+                <option value="0">0°</option>
+                <option value="90">90°</option>
+                <option value="180">180°</option>
+                <option value="270">270°</option>
+            </select>
+        </label>
+        <label>
+            <input id="mirror-checkbox" type="checkbox">
+            Mirror
+        </label>
     </div>
     
     <script type="text/javascript">
@@ -55,11 +68,17 @@
         var cameraSelect = document.querySelector("#camera-select");
         var microphoneSelect = document.querySelector("#microphone-select");
         var autofocusCheckbox = document.querySelector("#autofocus-checkbox");
+        var rotationSelect = document.querySelector("#rotation-select");
+        var mirrorCheckbox = document.querySelector("#mirror-checkbox");
         var selectedCamera;
         var selectedMicrophone;
         var autofocusEnabled = true;
         var currentStream;
         var requestNumber = 0;
+
+        function updateViewTransform() {
+            video.style.transform = "rotate(" + rotationSelect.value + "deg) scaleX(" + (mirrorCheckbox.checked ? -1 : 1) + ")";
+        }
 
         function getConstraints() {
             return {
@@ -169,6 +188,10 @@
             }
         });
 
+        rotationSelect.addEventListener("change", updateViewTransform);
+        mirrorCheckbox.addEventListener("change", updateViewTransform);
+
+        updateViewTransform();
         startStream();
         navigator.mediaDevices.addEventListener("devicechange", updateDeviceOptions);
         updateDeviceOptions();
