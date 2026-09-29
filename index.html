@@ -15,29 +15,135 @@
             width: 100%;
             max-width: 100%;
         }
+        #device-menu {
+            position: fixed;
+            z-index: 1;
+            padding: 12px;
+            background: white;
+            border: 1px solid #888;
+            box-shadow: 0 2px 8px #0004;
+        }
+        #device-menu label {
+            display: block;
+            margin-bottom: 8px;
+        }
+        #device-menu label:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
     <video autoplay id="vid"></video>
+    <div id="device-menu" hidden>
+        <label>
+            Camera
+            <select id="camera-select"></select>
+        </label>
+        <label>
+            Microphone
+            <select id="microphone-select"></select>
+        </label>
+    </div>
     
     <script type="text/javascript">
         var video = document.querySelector("#vid");
-        var constraints = {
-            audio: {deviceId: undefined},
-            video: {
-                width: { min: 1920, max: 1920*2 },
-                height: { min: 1080, max: 1080*2 }
+        var deviceMenu = document.querySelector("#device-menu");
+        var cameraSelect = document.querySelector("#camera-select");
+        var microphoneSelect = document.querySelector("#microphone-select");
+        var selectedCamera;
+        var selectedMicrophone;
+        var currentStream;
+        var requestNumber = 0;
+
+        function getConstraints() {
+            return {
+                audio: selectedMicrophone ? {deviceId: {exact: selectedMicrophone}} : true,
+                video: {
+                    ...(selectedCamera ? {deviceId: {exact: selectedCamera}} : {}),
+                    width: {min: 1920, max: 1920 * 2},
+                    height: {min: 1080, max: 1080 * 2}
+                }
+            };
         }
-    };
 
-    navigator.mediaDevices.getUserMedia(constraints)
-      .then(function(stream) {
-        video.srcObject  = stream;
-      })
-      .catch(function(error){
-        console.error(error);
-      });        
+        function startStream() {
+            var thisRequest = ++requestNumber;
+            navigator.mediaDevices.getUserMedia(getConstraints())
+                .then(function(stream) {
+                    if (thisRequest !== requestNumber) {
+                        stream.getTracks().forEach(function(track) { track.stop(); });
+                        return;
+                    }
+                    var previousStream = currentStream;
+                    currentStream = stream;
+                    video.srcObject = stream;
+                    if (previousStream) {
+                        previousStream.getTracks().forEach(function(track) { track.stop(); });
+                    }
+                    updateDeviceOptions();
+                })
+                .catch(function(error) {
+                    if (thisRequest === requestNumber) {
+                        console.error(error);
+                    }
+                });
+        }
 
+        function updateDeviceOptions() {
+            return navigator.mediaDevices.enumerateDevices().then(function(devices) {
+                [
+                    {select: cameraSelect, kind: "videoinput", selected: selectedCamera},
+                    {select: microphoneSelect, kind: "audioinput", selected: selectedMicrophone}
+                ].forEach(function(input) {
+                    var devicesOfKind = devices.filter(function(device) {
+                        return device.kind === input.kind;
+                    });
+                    input.select.replaceChildren(new Option("Default", ""));
+                    devicesOfKind.forEach(function(device, index) {
+                        var fallbackLabel = input.select === cameraSelect ? "Camera " : "Microphone ";
+                        var option = new Option(device.label || fallbackLabel + (index + 1), device.deviceId);
+                        input.select.add(option);
+                    });
+                    input.select.value = input.selected || "";
+                });
+            }).catch(function(error) {
+                console.error(error);
+            });
+        }
+
+        document.addEventListener("contextmenu", function(event) {
+            event.preventDefault();
+            deviceMenu.hidden = false;
+            var bounds = deviceMenu.getBoundingClientRect();
+            deviceMenu.style.left = Math.min(event.clientX, window.innerWidth - bounds.width) + "px";
+            deviceMenu.style.top = Math.min(event.clientY, window.innerHeight - bounds.height) + "px";
+        });
+
+        document.addEventListener("click", function(event) {
+            if (!deviceMenu.contains(event.target)) {
+                deviceMenu.hidden = true;
+            }
+        });
+
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "Escape") {
+                deviceMenu.hidden = true;
+            }
+        });
+
+        cameraSelect.addEventListener("change", function() {
+            selectedCamera = cameraSelect.value || undefined;
+            startStream();
+        });
+
+        microphoneSelect.addEventListener("change", function() {
+            selectedMicrophone = microphoneSelect.value || undefined;
+            startStream();
+        });
+
+        startStream();
+        navigator.mediaDevices.addEventListener("devicechange", updateDeviceOptions);
+        updateDeviceOptions();
     </script>
     
 </body>
